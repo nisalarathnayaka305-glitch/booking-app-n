@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Book a Service</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --coral:   #FF5C5C;
+      --orange:  #FF9340;
+      --purple:  #7C3AED;
+      --pink:    #F472B6;
+      --yellow:  #FBBF24;
+      --bg:      #0D0D1A;
+      --surface: #16162A;
+      --border:  rgba(255,255,255,0.08);
+      --text:    #F0EEF8;
+      --muted:   #9191B4;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── animated background blobs ── */
+    .bg-blobs {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    }
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.25;
+      animation: drift 12s ease-in-out infinite alternate;
+    }
+    .blob-1 { width: 520px; height: 520px; background: var(--purple); top: -160px; left: -160px; animation-delay: 0s; }
+    .blob-2 { width: 400px; height: 400px; background: var(--coral);  bottom: -100px; right: -100px; animation-delay: 3s; }
+    .blob-3 { width: 300px; height: 300px; background: var(--orange); top: 40%;  left: 55%; animation-delay: 6s; }
+
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, 40px) scale(1.08); }
+    }
+
+    /* ── layout ── */
+    .page {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 48px 20px 80px;
+      min-height: 100vh;
+    }
+
+    /* ── header ── */
+    .header { text-align: center; margin-bottom: 48px; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(124,58,237,0.2);
+      border: 1px solid rgba(124,58,237,0.4);
+      color: #C4B5FD;
+      font-size: 13px; font-weight: 600; letter-spacing: 0.08em;
+      padding: 6px 16px; border-radius: 100px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+    .badge span { font-size: 16px; }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(2.4rem, 6vw, 4rem);
+      font-weight: 800;
+      line-height: 1.1;
+      background: linear-gradient(135deg, #fff 0%, var(--orange) 50%, var(--coral) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 14px;
+    }
+
+    .subtitle {
+      color: var(--muted); font-size: 17px; max-width: 420px; margin: 0 auto;
+    }
+
+    /* ── card ── */
+    .card {
+      width: 100%; max-width: 580px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px 36px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+      animation: slideUp 0.6s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(32px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── form grid ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+    .span-2 { grid-column: span 2; }
+
+    .field { display: flex; flex-direction: column; gap: 8px; }
+
+    label {
+      font-size: 13px; font-weight: 600;
+      color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase;
+    }
+
+    input, select, textarea {
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 13px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+    input::placeholder, textarea::placeholder { color: #555574; }
+    select option { background: #1e1e38; }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--purple);
+      background: rgba(124,58,237,0.07);
+      box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+    }
+
+    textarea { resize: vertical; min-height: 96px; }
+
+    /* ── divider ── */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 4px 0; grid-column: span 2;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .divider span { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+
+    /* ── submit button ── */
+    .btn-submit {
+      width: 100%; padding: 16px;
+      background: linear-gradient(135deg, var(--purple), var(--coral));
+      border: none; border-radius: 14px;
+      color: #fff; font-family: 'Syne', sans-serif;
+      font-size: 17px; font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      position: relative; overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 8px 30px rgba(124,58,237,0.35);
+    }
+    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(124,58,237,0.5); }
+    .btn-submit:active { transform: translateY(0); }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-submit .shimmer {
+      position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+      transform: translateX(-100%);
+      transition: transform 0.5s;
+    }
+    .btn-submit:hover .shimmer { transform: translateX(100%); }
+
+    /* ── toast ── */
+    .toast {
+      position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px);
+      padding: 14px 24px; border-radius: 14px;
+      font-size: 15px; font-weight: 600;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+      white-space: nowrap; z-index: 999;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.success { background: linear-gradient(135deg,#16a34a,#15803d); color: #fff; box-shadow: 0 8px 30px rgba(22,163,74,0.4); }
+    .toast.error   { background: linear-gradient(135deg,#dc2626,#b91c1c); color: #fff; box-shadow: 0 8px 30px rgba(220,38,38,0.4); }
+
+    /* ── success state ── */
+    .success-screen {
+      display: none; flex-direction: column; align-items: center;
+      text-align: center; gap: 16px; padding: 20px 0;
+    }
+    .success-screen.visible { display: flex; }
+    .checkmark {
+      width: 80px; height: 80px; border-radius: 50%;
+      background: linear-gradient(135deg, #16a34a, #15803d);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 0 0 16px rgba(22,163,74,0.12);
+      animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+    }
+    @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+    .success-screen h2 { font-family: 'Syne', sans-serif; font-size: 26px; }
+    .success-screen p  { color: var(--muted); font-size: 15px; }
+    .btn-again {
+      margin-top: 8px; padding: 12px 32px;
+      border: 1.5px solid var(--border); border-radius: 12px;
+      background: transparent; color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-again:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+
+    /* ── calendar section ── */
+    .cal-wrap {
+      width: 100%; max-width: 780px;
+      margin-top: 48px;
+      animation: slideUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.15s both;
+    }
+    .cal-header-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .cal-title {
+      font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800;
+      background: linear-gradient(135deg, #fff, var(--orange));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .cal-nav { display: flex; gap: 8px; }
+    .cal-nav button {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); width: 38px; height: 38px; border-radius: 10px;
+      font-size: 16px; cursor: pointer; transition: background 0.2s, border-color 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cal-nav button:hover { background: rgba(124,58,237,0.2); border-color: var(--purple); }
+    .cal-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 24px; padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+    .cal-days-header {
+      display: grid; grid-template-columns: repeat(7, 1fr);
+      text-align: center; margin-bottom: 8px;
+    }
+    .cal-days-header span {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      color: var(--muted); text-transform: uppercase; padding: 6px 0;
+    }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-day {
+      aspect-ratio: 1; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: default; position: relative; transition: background 0.15s, transform 0.15s;
+      font-size: 14px; font-weight: 500;
+    }
+    .cal-day.empty { opacity: 0; pointer-events: none; }
+    .cal-day.other-month { color: #333355; }
+    .cal-day.today {
+      background: rgba(124,58,237,0.15);
+      border: 1.5px solid rgba(124,58,237,0.4);
+      color: #C4B5FD; font-weight: 700;
+    }
+    .cal-day.has-booking {
+      cursor: pointer;
+      background: rgba(255,92,92,0.1);
+      border: 1.5px solid rgba(255,92,92,0.35);
+    }
+    .cal-day.has-booking:hover {
+      background: rgba(255,92,92,0.22);
+      border-color: var(--coral);
+      transform: scale(1.05);
+    }
+    .cal-day.selected {
+      background: linear-gradient(135deg, var(--purple), var(--coral)) !important;
+      border-color: transparent !important;
+      color: #fff !important; font-weight: 700;
+      box-shadow: 0 4px 20px rgba(255,92,92,0.4);
+      transform: scale(1.08);
+    }
+    .booking-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--coral); margin-top: 3px;
+    }
+    .booking-count {
+      position: absolute; top: 3px; right: 5px;
+      font-size: 9px; font-weight: 700; color: var(--coral);
+    }
+    /* panel */
+    .booking-panel { margin-top: 20px; display: none; animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1) both; }
+    .booking-panel.visible { display: block; }
+    .panel-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+    .booking-item {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 18px;
+      display: flex; align-items: center; gap: 14px; margin-bottom: 8px;
+    }
+    .booking-item-icon {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--purple), var(--coral));
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .booking-item-info { flex: 1; min-width: 0; }
+    .booking-item-name { font-weight: 600; font-size: 15px; }
+    .booking-item-meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .booking-item-time { font-size: 13px; font-weight: 700; color: var(--orange); white-space: nowrap; }
+
+    /* ── responsive ── */
+    @media (max-width: 520px) {
+      .card { padding: 28px 20px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .span-2 { grid-column: span 1; }
+      .divider { grid-column: span 1; }
+      .cal-card { padding: 16px; }
+      .cal-day { font-size: 12px; border-radius: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-blobs">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+</div>
+
+<div class="page">
+  <div class="header">
+    <div class="badge"><span>✦</span> Online Booking <span>✦</span></div>
+    <h1>Book Your Service</h1>
+    <p class="subtitle">Fill in the details below and we'll confirm your appointment shortly.</p>
+  </div>
+
+  <div class="card">
+    <!-- BOOKING FORM -->
+    <form id="bookingForm" autocomplete="off">
+      <div class="form-grid">
+
+        <div class="field">
+          <label>First Name</label>
+          <input type="text" id="firstName" placeholder="John" required />
+        </div>
+
+        <div class="field">
+          <label>Last Name</label>
+          <input type="text" id="lastName" placeholder="Doe" required />
+        </div>
+
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="email" placeholder="john@email.com" required />
+        </div>
+
+        <div class="field">
+          <label>Phone</label>
+          <input type="tel" id="phone" placeholder="+1 234 567 890" required />
+        </div>
+
+        <div class="divider"><span>Service Details</span></div>
+
+        <div class="field span-2">
+          <label>Service Type</label>
+          <select id="service" required>
+            <option value="" disabled selected>Select a service…</option>
+            <option>Consultation</option>
+            <option>General Repair</option>
+            <option>Installation</option>
+            <option>Maintenance</option>
+            <option>Custom Request</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Preferred Date</label>
+          <input type="date" id="date" required />
+        </div>
+
+        <div class="field">
+          <label>Preferred Time</label>
+          <select id="time" required>
+            <option value="" disabled selected>Pick a time…</option>
+            <option>09:00 AM</option>
+            <option>10:00 AM</option>
+            <option>11:00 AM</option>
+            <option>12:00 PM</option>
+            <option>01:00 PM</option>
+            <option>02:00 PM</option>
+            <option>03:00 PM</option>
+            <option>04:00 PM</option>
+            <option>05:00 PM</option>
+          </select>
+        </div>
+
+        <div class="field span-2">
+          <label>Additional Notes</label>
+          <textarea id="notes" placeholder="Any special requirements or details…"></textarea>
+        </div>
+
+        <div class="span-2">
+          <button type="submit" class="btn-submit" id="submitBtn">
+            <div class="shimmer"></div>
+            Confirm Booking →
+          </button>
+        </div>
+
+      </div>
+    </form>
+
+    <!-- SUCCESS STATE -->
+    <div class="success-screen" id="successScreen">
+      <div class="checkmark">✓</div>
+      <h2>Booking Confirmed! 🎉</h2>
+      <p>We've received your request and will get in touch soon.</p>
+      <button class="btn-again" onclick="resetForm()">Make Another Booking</button>
+    </div>
+  </div>
+  <!-- CALENDAR -->
+  <div class="cal-wrap">
+    <div class="cal-header-row">
+      <div class="cal-title" id="calMonthLabel"></div>
+      <div class="cal-nav">
+        <button onclick="changeMonth(-1)">&#8592;</button>
+        <button onclick="changeMonth(1)">&#8594;</button>
+      </div>
+    </div>
+    <div class="cal-card">
+      <div class="cal-days-header">
+        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span>
+        <span>Thu</span><span>Fri</span><span>Sat</span>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="booking-panel" id="bookingPanel">
+        <div class="panel-title" id="panelTitle"></div>
+        <div id="panelList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ══════════════════════════════════════════════════
+  //  🔧 REPLACE THESE WITH YOUR SUPABASE CREDENTIALS
+  //     Dashboard → Settings → API
+  // ══════════════════════════════════════════════════
+  const SUPABASE_URL = 'https://ohmbrnvcdxpsimkilwjo.supabase.co'
+  const SUPABASE_KEY = 'sb_publishable_ep9pM7qQUOo-fNeN82eDug_Jc6ooEun'
+  // ══════════════════════════════════════════════════
+
+  const { createClient } = supabase
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY)
+
+  // Set today as minimum date
+  document.getElementById('date').min = new Date().toISOString().split('T')[0]
+
+  // ── form submit ──
+  document.getElementById('bookingForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+
+    const btn = document.getElementById('submitBtn')
+    btn.disabled = true
+    btn.textContent = 'Submitting…'
+
+    const payload = {
+      first_name: document.getElementById('firstName').value.trim(),
+      last_name:  document.getElementById('lastName').value.trim(),
+      email:      document.getElementById('email').value.trim(),
+      phone:      document.getElementById('phone').value.trim(),
+      service:    document.getElementById('service').value,
+      date:       document.getElementById('date').value,
+      time:       document.getElementById('time').value,
+      notes:      document.getElementById('notes').value.trim(),
+      created_at: new Date().toISOString()
+    }
+
+    const { error } = await db.from('bookings').insert(payload)
+
+    if (error) {
+      showToast('Something went wrong. Please try again.', 'error')
+      btn.disabled = false
+      btn.innerHTML = '<div class="shimmer"></div>Confirm Booking →'
+    } else {
+      document.getElementById('bookingForm').style.display = 'none'
+      document.getElementById('successScreen').classList.add('visible')
+      loadBookings()
+    }
+  })
+
+  // ── toast helper ──
+  function showToast(msg, type) {
+    const t = document.getElementById('toast')
+    t.textContent = msg
+    t.className = `toast ${type} show`
+    setTimeout(() => t.classList.remove('show'), 4000)
+  }
+
+
+  // ── calendar ──
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December']
+  const SERVICE_ICONS = {
+    'Consultation': '💬', 'General Repair': '🔧', 'Installation': '⚙️',
+    'Maintenance': '🛠️', 'Custom Request': '✨'
+  }
+
+  let allBookings = []
+  let calYear, calMonth, selectedDate = null
+
+  async function loadBookings() {
+    const { data, error } = await db.from('bookings').select('*')
+    if (!error) { allBookings = data || []; renderCalendar() }
+  }
+
+  function bookingsForDate(dateStr) {
+    return allBookings.filter(b => b.date === dateStr)
+  }
+
+  function renderCalendar() {
+    const now = new Date()
+    if (calYear === undefined) { calYear = now.getFullYear(); calMonth = now.getMonth() }
+    document.getElementById('calMonthLabel').textContent = MONTHS[calMonth] + ' ' + calYear
+
+    const firstDay = new Date(calYear, calMonth, 1).getDay()
+    const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate()
+    const todayStr = now.toISOString().split('T')[0]
+
+    const grid = document.getElementById('calGrid')
+    grid.innerHTML = ''
+
+    // empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+      const el = document.createElement('div')
+      el.className = 'cal-day empty'
+      grid.appendChild(el)
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = calYear + '-' + String(calMonth+1).padStart(2,'0') + '-' + String(d).padStart(2,'0')
+      const bks = bookingsForDate(dateStr)
+      const el = document.createElement('div')
+      el.className = 'cal-day'
+      if (dateStr === todayStr) el.classList.add('today')
+      if (bks.length > 0) el.classList.add('has-booking')
+      if (dateStr === selectedDate) el.classList.add('selected')
+
+      el.innerHTML = d
+      if (bks.length > 0) {
+        el.innerHTML += '<div class="booking-dot"></div>'
+        if (bks.length > 1) el.innerHTML += '<span class="booking-count">×' + bks.length + '</span>'
+        el.onclick = () => showPanel(dateStr, bks)
+      }
+      grid.appendChild(el)
+    }
+
+    if (selectedDate) {
+      const bks = bookingsForDate(selectedDate)
+      if (bks.length) showPanel(selectedDate, bks, false)
+      else hidePanel()
+    }
+  }
+
+  function showPanel(dateStr, bks, updateSelected = true) {
+    if (updateSelected) {
+      selectedDate = dateStr
+      renderCalendar()
+      return
+    }
+    const [y,m,d] = dateStr.split('-')
+    document.getElementById('panelTitle').textContent =
+      MONTHS[parseInt(m)-1] + ' ' + parseInt(d) + ', ' + y + ' — ' + bks.length + ' Booking' + (bks.length>1?'s':'')
+
+    document.getElementById('panelList').innerHTML = bks.map(b => `
+      <div class="booking-item">
+        <div class="booking-item-icon">${SERVICE_ICONS[b.service] || '📋'}</div>
+        <div class="booking-item-info">
+          <div class="booking-item-name">${b.first_name} ${b.last_name}</div>
+          <div class="booking-item-meta">${b.service} &nbsp;·&nbsp; ${b.email}</div>
+        </div>
+        <div class="booking-item-time">${b.time}</div>
+      </div>
+    `).join('')
+
+    document.getElementById('bookingPanel').classList.add('visible')
+  }
+
+  function hidePanel() {
+    document.getElementById('bookingPanel').classList.remove('visible')
+  }
+
+  function changeMonth(dir) {
+    calMonth += dir
+    if (calMonth > 11) { calMonth = 0; calYear++ }
+    if (calMonth < 0)  { calMonth = 11; calYear-- }
+    selectedDate = null
+    hidePanel()
+    renderCalendar()
+  }
+
+  loadBookings()
+
+  // ── reset ──
+  function resetForm() {
+    document.getElementById('bookingForm').reset()
+    document.getElementById('bookingForm').style.display = 'block'
+    document.getElementById('successScreen').classList.remove('visible')
+    document.getElementById('submitBtn').disabled = false
+    document.getElementById('submitBtn').innerHTML = '<div class="shimmer"></div>Confirm Booking →'
+  }
+</script>
+</body>
+</html>
